@@ -1,6 +1,7 @@
 // DevTrack AI - Using FREE Groq API (Faster & More Reliable!)
 const express = require('express');
 const cors = require('cors');
+const fetch = require('node-fetch'); // ADD THIS LINE
 require('dotenv').config();
 
 const app = express();
@@ -10,14 +11,27 @@ app.use(express.json());
 const PORT = process.env.PORT || 5000;
 
 async function fetchGitHub(url) {
-  const response = await fetch(url, {
-    headers: {
-      'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'DevTrack-AI'
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'DevTrack-AI'
+      },
+      timeout: 10000 // 10 second timeout
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`GitHub API error: ${response.status} - ${errorText}`);
     }
-  });
-  if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
-  return response.json();
+    
+    return response.json();
+  } catch (error) {
+    if (error.type === 'request-timeout') {
+      throw new Error('GitHub API timeout - please try again');
+    }
+    throw error;
+  }
 }
 
 // Groq API - FREE and SUPER FAST!
@@ -45,40 +59,48 @@ Return ONLY valid JSON:
   "teamDynamics": {"collaborationScore": 85, "insights": "detailed text"}
 }`;
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { 
-          role: 'system', 
-          content: 'You are an expert software engineering analyst. Always return valid JSON only, no markdown or code blocks.' 
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 4096
-    })
-  });
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are an expert software engineering analyst. Always return valid JSON only, no markdown or code blocks.' 
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 4096
+      }),
+      timeout: 30000 // 30 second timeout
+    });
 
-  if (!response.ok) {
-    const error = await response.json();
-    console.error('Groq Error:', error);
-    throw new Error(error.error?.message || 'Groq API error - check your API key');
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Groq Error:', error);
+      throw new Error(error.error?.message || 'Groq API error - check your API key');
+    }
+
+    const data = await response.json();
+    const text = data.choices[0].message.content;
+    
+    // Extract JSON
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Invalid AI response');
+    
+    return JSON.parse(jsonMatch[0]);
+  } catch (error) {
+    if (error.type === 'request-timeout') {
+      throw new Error('Groq API timeout - please try again');
+    }
+    throw error;
   }
-
-  const data = await response.json();
-  const text = data.choices[0].message.content;
-  
-  // Extract JSON
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Invalid AI response');
-  
-  return JSON.parse(jsonMatch[0]);
 }
 
 app.post('/api/analyze', async (req, res) => {
