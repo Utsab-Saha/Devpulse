@@ -20,7 +20,8 @@ async function fetchGitHub(url) {
       },
       timeout: 10000 // 10 second timeout
     });
-    
+
+    // error handling
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`GitHub API error: ${response.status} - ${errorText}`);
