@@ -4,7 +4,7 @@ import { LogOut, Plus, Trash2, Edit, X, Target, AlertTriangle, TrendingUp, Loade
 // Configuration - Using Vercel serverless functions
 const CONFIG = {
   API_URL: process.env.REACT_APP_API_URL || '', // Empty for same-origin API routes
-  GITHUB_CLIENT_ID: process.env.REACT_APP_GITHUB_CLIENT_ID || 'Ov23linVs5BQek63QtJ4',
+  GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID || 'Ov23linVs5BQek63QtJ4',
   MAX_REPOS: 5
 };
 

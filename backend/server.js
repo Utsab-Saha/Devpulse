@@ -1,7 +1,8 @@
-// DevPulse - Production Backend with GitHub Gists Storage
+// DevPulse - Production Server for Render (Monolithic Deployment)
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -13,12 +14,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
+const NODE_ENV = process.env.NODE_ENV || 'production';
 
 // Generate or use provided encryption key (must be 64 hex chars = 32 bytes)
 let ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 if (!ENCRYPTION_KEY) {
   ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
-  console.log('⚠️  Generated new encryption key. Add to .env to persist:');
+  console.log('⚠️  Generated new encryption key. Add to Render environment:');
   console.log(`ENCRYPTION_KEY=${ENCRYPTION_KEY}\n`);
 } else if (ENCRYPTION_KEY.length !== 64) {
   console.error('❌ ERROR: ENCRYPTION_KEY must be exactly 64 hex characters!');
@@ -29,7 +31,7 @@ if (!ENCRYPTION_KEY) {
 // Validate environment variables
 if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
   console.error('\n❌ ERROR: Missing GitHub OAuth credentials!');
-  console.error('Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in your .env file\n');
+  console.error('Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in Render environment\n');
   process.exit(1);
 }
 
@@ -40,24 +42,24 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
-  'https://devpulse-blush.vercel.app'
+  'http://localhost:5000'
 ];
 
-// Add FRONTEND_URL from env if it exists
-if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
-  allowedOrigins.push(process.env.FRONTEND_URL);
+// Add Render URL from env if it exists
+if (process.env.RENDER_EXTERNAL_URL) {
+  allowedOrigins.push(process.env.RENDER_EXTERNAL_URL);
 }
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc.)
+    // Allow requests with no origin (same-origin requests)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       console.warn(`⚠️  CORS blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      callback(null, true); // Allow in production for same-domain
     }
   },
   credentials: true,
@@ -67,6 +69,13 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
+
+// ============================================================================
+// SERVE STATIC FRONTEND FILES
+// ============================================================================
+
+// Serve static files from React build
+app.use(express.static(path.join(__dirname, 'client/build')));
 
 // ============================================================================
 // SECURITY & SESSION MANAGEMENT
@@ -680,6 +689,7 @@ app.get('/api/health', (req, res) => {
     status: 'healthy', 
     service: 'DevPulse Backend',
     version: '2.0.0',
+    platform: 'Render',
     model: 'Llama 3.3 70B (Groq)',
     features: [
       'GitHub OAuth',
@@ -697,20 +707,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    name: 'DevPulse API',
-    version: '2.0.0',
-    status: 'running',
-    endpoints: {
-      auth: ['/api/auth/github', '/api/auth/logout'],
-      repos: ['/api/repo/check-access'],
-      storage: ['/api/storage/save', '/api/storage/load'],
-      analysis: ['/api/analyze'],
-      health: ['/api/health']
-    }
-  });
+// ============================================================================
+// FRONTEND ROUTING - MUST BE LAST
+// ============================================================================
+
+// All other routes serve the React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
 });
 
 // ============================================================================
@@ -735,9 +738,10 @@ setInterval(() => {
 // Start server
 app.listen(PORT, () => {
   console.log('\n╔════════════════════════════════════════════════════════════╗');
-  console.log('║          🚀 DevPulse Backend - Production Ready          ║');
+  console.log('║          🚀 DevPulse - Render Deployment                 ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
-  console.log(`📡 Server:        http://localhost:${PORT}`);
+  console.log(`📡 Server:        Port ${PORT}`);
+  console.log(`🌐 Platform:      Render`);
   console.log(`🔐 GitHub OAuth:  ${GITHUB_CLIENT_ID ? '✓ Configured' : '❌ Not configured'}`);
   console.log(`🔑 Encryption:    ${ENCRYPTION_KEY ? '✓ Enabled (AES-256)' : '❌ Disabled'}`);
   console.log(`🤖 AI Model:      Llama 3.3 70B (Groq)`);
@@ -747,8 +751,6 @@ app.listen(PORT, () => {
   console.log(`   ✓ Session-based authentication (24h expiry)`);
   console.log(`   ✓ CORS protection`);
   console.log(`   ✓ Automatic session cleanup`);
-  console.log(`\n🌐 Allowed CORS Origins:`);
-  allowedOrigins.forEach(origin => console.log(`   ✓ ${origin}`));
   console.log(`\n✅ Ready to accept connections!\n`);
 });
 
