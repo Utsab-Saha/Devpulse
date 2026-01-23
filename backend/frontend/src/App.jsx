@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LogOut, Plus, Trash2, Edit, X, Target, AlertTriangle, TrendingUp, Loader2, Lock, Clock, RefreshCw, Save, BarChart3, Users, FileText, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
 
-// Configuration - Using Vercel serverless functions
+// Configuration - Using Vercel serverless functions (can be configured later)
 const CONFIG = {
   API_URL: process.env.REACT_APP_API_URL || '', // Empty for same-origin API routes
   GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID || 'Ov23linVs5BQek63QtJ4',
